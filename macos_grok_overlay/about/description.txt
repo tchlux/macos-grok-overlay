@@ -1,0 +1,1 @@
+A simple macOS overlay application for pinning 'grok.com' to a dedicated window and key command.
