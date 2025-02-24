@@ -1,0 +1,3 @@
+recursive-include macos_grok_overlay *
+global-exclude *.so *.dylib
+exclude .git .gitignore
