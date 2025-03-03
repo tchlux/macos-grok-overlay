@@ -9,10 +9,11 @@ from Quartz import (
 
 
 WEBSITE = "https://grok.com?referrer=macos-grok-overlay"
-LOGO_WHITE_PATH = "grok_logo_white.png"
-LOGO_BLACK_PATH = "grok_logo_black.png"
+LOGO_WHITE_PATH = "logo/logo_white.png"
+LOGO_BLACK_PATH = "logo/logo_black.png"
 FRAME_SAVE_NAME = "GrokWindowFrame"
 APP_TITLE = "Grok"
+PERMISSION_CHECK_EXIT = 1
 CORNER_RADIUS = 15.0
 DRAG_AREA_HEIGHT = 30
 STATUS_ITEM_CONTEXT = 1
