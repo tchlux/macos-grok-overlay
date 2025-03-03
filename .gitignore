@@ -1,5 +1,8 @@
 *.pyc
 *.so
 *.egg-info
+*.dmg
+dist
+build
 __pycache__
 .DS_Store

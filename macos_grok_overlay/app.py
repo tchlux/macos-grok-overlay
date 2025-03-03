@@ -1,5 +1,6 @@
 # Python libraries
 import os
+import sys
 
 # Apple libraries
 import objc
@@ -220,7 +221,7 @@ class AppDelegate(NSObject):
         if install_startup():
             # Exit the current process since a new one will launch.
             print("Installation successful, exiting.", flush=True)
-            sys.exit(0)
+            NSApp.terminate_(None)
         else:
             print("Installation unsuccessful.", flush=True)
 

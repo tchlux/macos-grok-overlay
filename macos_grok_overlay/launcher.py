@@ -1,7 +1,9 @@
 # Python libraries.
 import getpass
 import os
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 # Apple libraries.
@@ -11,15 +13,32 @@ from ApplicationServices import AXIsProcessTrustedWithOptions, kAXTrustedCheckOp
 
 # Local libraries
 from .constants import APP_TITLE
+from .health_checks import reset_crash_counter
 
+
+# Get the executable path.
+def get_executable():
+    if getattr(sys, "frozen", False):  # Running from a py2app bundle
+        assert (".app" in sys.argv[0]), f"Expected the first command line argument to have a directory ending in `.app`, but none do. {sys.argv[0]}"
+        # Locate the executable within the .app bundle
+        app_path = sys.argv[0]
+        while not app_path.endswith(".app"):
+            app_path = os.path.dirname(app_path)
+        executable = os.path.join(app_path, "Contents", "MacOS", f"macos-{APP_TITLE.lower()}-overlay")
+        program_args = [executable]
+    else:  # Running from pip installation
+        program_args = [sys.executable, "-m", f"macos_{APP_TITLE.lower()}_overlay"]
+    return program_args
 
 # Install the app as a startup application using a Launch Agent.
 def install_startup():
     # Get the absolute path to the macos-*-overlay script
     username = getpass.getuser()
+    program_args = get_executable()
+    # Define the PLIST data..
     plist = {
         "Label": f"com.{username}.macos{APP_TITLE.lower()}overlay",
-        "ProgramArguments": [sys.executable, "-m", "macos_grok_overlay"],
+        "ProgramArguments": program_args,
         "RunAtLoad": True,
         "KeepAlive": True,  # Will be restarted automatically on failure.
     }
@@ -36,7 +55,6 @@ def install_startup():
         print(f"Installed as startup app. Launch Agent created at {plist_path}.")
         print(f"To disable, run: macos-{APP_TITLE.lower()}-overlay --uninstall-startup")
         return True
-
 
 # Uninstall the app from running at login.
 def uninstall_startup():
@@ -69,34 +87,22 @@ def check_permissions(ask=True):
 # Spawn a child process to check the latest permission status.
 def get_updated_permission_status():
     result = subprocess.run(
-        [sys.executable, sys.argv[0], "--check-permissions"],
+        get_executable() + ["--check-permissions"],
         capture_output=True,
         text=True
     )
     return result.returncode == 0
 
 # Wait for permissions to be granted, checking periodically.
-def wait_for_permissions(max_wait_sec=120, wait_interval_sec=5):
+def wait_for_permissions(max_wait_sec=60, wait_interval_sec=5):
     elapsed = 0
     while elapsed < max_wait_sec:
         if get_updated_permission_status():
             return True
         time.sleep(wait_interval_sec)
         elapsed += wait_interval_sec
+        reset_crash_counter()
     return False
-
-# Relaunch the application with the same command used to start it.
-def relaunch_application():
-    if os.access(sys.argv[0], os.X_OK):
-        # If sys.argv[0] is executable (e.g., an installed script), run it directly
-        command = [sys.argv[0]] + sys.argv[1:]
-    else:
-        # Otherwise, assume it’s a Python script and run with the original interpreter
-        command = [sys.executable] + sys.argv
-    # Launch the new process
-    subprocess.Popen(command, start_new_session=True)
-    # Exit the current process (the child should continue regardless)
-    sys.exit(0)
 
 # Ensure Accessibility permissions are granted, relaunching if necessary.
 def ensure_accessibility_permissions():
@@ -106,7 +112,7 @@ def ensure_accessibility_permissions():
     # Wait for permissions to be granted
     if wait_for_permissions():
         print("Permissions granted, exiting application (to be restarted automatically)...")
-        sys.exit(0)
+        return
     else:
         print("Permissions not granted within the time limit. Uninstalling application, since this installation must have failed.")
         uninstall_startup()
