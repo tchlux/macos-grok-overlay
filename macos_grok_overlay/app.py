@@ -116,7 +116,8 @@ class AppDelegate(NSObject):
         content_view.addSubview_(self.webview)
         self.webview.setFrame_(NSMakeRect(0, 0, content_bounds.size.width, content_bounds.size.height - DRAG_AREA_HEIGHT))
         # Contat the target website.
-        url = NSURL.URLWithString_(WEBSITE)
+        website_url = os.environ.get("MY_WEBSITE", WEBSITE)
+        url = NSURL.URLWithString_(website_url)
         request = NSURLRequest.requestWithURL_(url)
         self.webview.loadRequest_(request)
         # Set up script message handler for background color changes
@@ -226,7 +227,8 @@ class AppDelegate(NSObject):
     
     # Go to the default landing website for the overlay (in case accidentally navigated away).
     def goToWebsite_(self, sender):
-        url = NSURL.URLWithString_(WEBSITE)
+        website_url = os.environ.get("MY_WEBSITE", WEBSITE)
+        url = NSURL.URLWithString_(website_url)
         request = NSURLRequest.requestWithURL_(url)
         self.webview.loadRequest_(request)
     
