@@ -7,6 +7,7 @@ import objc
 from AppKit import *
 from WebKit import *
 from Quartz import *
+from AVFoundation import *
 from Foundation import NSObject, NSURL, NSURLRequest, NSDate
 
 # Local libraries
@@ -63,7 +64,9 @@ class AppDelegate(NSObject):
     # The main application setup.
     def applicationDidFinishLaunching_(self, notification):
         # Run as accessory app
-        NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+        #NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+        # WRB Run as normal
+        NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
         # Create a borderless, floating, resizable window
         self.window = AppWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(500, 200, 550, 580),
@@ -71,7 +74,8 @@ class AppDelegate(NSObject):
             NSBackingStoreBuffered,
             False
         )
-        self.window.setLevel_(NSFloatingWindowLevel)
+        # self.window.setLevel_(NSFloatingWindowLevel) for always on top WRB
+        self.window.setLevel_(NSNormalWindowLevel)
         self.window.setCollectionBehavior_(
             NSWindowCollectionBehaviorCanJoinAllSpaces
             | NSWindowCollectionBehaviorStationary
@@ -88,7 +92,9 @@ class AppDelegate(NSObject):
         )
         self.webview.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)  # Resizes with window
         # Set a custom user agent
-        safari_user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+        #safari_user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+	# update browser WRB Oct 3 2025
+        safari_user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
         self.webview.setCustomUserAgent_(safari_user_agent)
         # Make window transparent so that the corners can be rounded
         self.window.setOpaque_(False)
@@ -143,6 +149,15 @@ class AppDelegate(NSObject):
         logo_black_path = os.path.join(script_dir, LOGO_BLACK_PATH)
         self.logo_black = NSImage.alloc().initWithContentsOfFile_(logo_black_path)
         self.logo_black.setSize_(NSSize(18, 18))
+	# WRB: set to larger font size
+        font_script = """
+          var style = document.createElement('style');
+          style.innerHTML = '* { font-size: 18px !important; }';
+          document.head.appendChild(style);
+        """
+        font_user_script = WKUserScript.alloc().initWithSource_injectionTime_forMainFrameOnly_(font_script, WKUserScriptInjectionTimeAtDocumentEnd, True)
+        user_content_controller.addUserScript_(font_user_script)
+
         # Set the initial logo image based on the current appearance
         self.updateStatusItemImage()
         # Observe system appearance changes
@@ -175,6 +190,7 @@ class AppDelegate(NSObject):
         menu.addItem_(uninstall_item)
         quit_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Quit", "terminate:", "q")
         quit_item.setTarget_(NSApp)
+        quit_item.setEnabled_(True) # WRB
         menu.addItem_(quit_item)
         # Set the menu for the status item
         self.status_item.setMenu_(menu)
@@ -182,11 +198,22 @@ class AppDelegate(NSObject):
         NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
             self, 'windowDidResize:', NSWindowDidResizeNotification, self.window
         )
-        # Add local mouse event monitor for left mouse down
-        self.local_mouse_monitor = NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
-            NSEventMaskLeftMouseDown,  # Monitor left mouse-down events
-            self.handleLocalMouseEvent  # Handler method
-        )
+        # Add local mouse event monitor for left mouse down WRB: comment out for .app
+        #self.local_mouse_monitor = NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
+        #    NSEventMaskLeftMouseDown,  # Monitor left mouse-down events
+        #    self.handleLocalMouseEvent  # Handler method
+        #)
+        # allow access to microphone for Grok voice WRB Oct 3 2025
+        session = AVAudioSession.sharedInstance()
+        session.requestRecordPermission_(lambda granted: print("Mic granted:", granted))
+
+	# WRB moved the following 3 lines from after create tap to before tap.
+        # Load the custom launch trigger if the user set it.
+        load_custom_launcher_trigger()
+        # Set the delegate of the window to this parent application.
+        self.window.setDelegate_(self)
+        # Make sure this window is shown and focused.
+        self.showWindow_(None)
         # Create the event tap for key-down events
         tap = CGEventTapCreate(
             kCGSessionEventTap, # Tap at the session level
@@ -201,15 +228,9 @@ class AppDelegate(NSObject):
             source = CFMachPortCreateRunLoopSource(None, tap, 0)
             CFRunLoopAddSource(CFRunLoopGetCurrent(), source, kCFRunLoopCommonModes)
             CGEventTapEnable(tap, True)
-            CFRunLoopRun() # Start the run loop
+            #CFRunLoopRun() # Start the run loop
         else:
             print("Failed to create event tap. Check Accessibility permissions.")
-        # Load the custom launch trigger if the user set it.
-        load_custom_launcher_trigger()
-        # Set the delegate of the window to this parent application.
-        self.window.setDelegate_(self)
-        # Make sure this window is shown and focused.
-        self.showWindow_(None)
 
     # Logic to show the overlay, make it the key window, and focus on the typing area.
     def showWindow_(self, sender):

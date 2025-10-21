@@ -73,13 +73,15 @@ if __name__ == "__main__":
                     'plist': {
                         'CFBundleName': package_name,
                         'CFBundleIdentifier': f'com.github-{git_username}.macos{source_page}overlay',  # Unique identifier
-                        'LSUIElement': True,  # Hide from Dock and Cmd+Tab
+                        'LSUIElement': False,  # WRB. Make a normal window
+                        #'LSUIElement': True,  # Hide from Dock and Cmd+Tab
                         # 'NSAppTransportSecurity': {'NSAllowsArbitraryLoads': True}  # Allow HTTP and invalid HTTPS certificates for X login
                         # 'NSCameraUsageDescription': 'Camera access is needed to take pictures.',
-                        # 'NSMicrophoneUsageDescription': 'Microphone access is needed for voice mode features.'
+			# WRB enable microphone use
+                        'NSMicrophoneUsageDescription': 'Microphone access is needed for voice mode features.'
 
                     },
-                    'includes': ['pyobjc'],  # Ensure required dependencies are bundled
+                    'includes': ['pyobjc', 'pyobjc-core', 'pyobjc-framework-Cocoa', 'pyobjc-framework-AppKit', 'jaraco', 'jaraco.text'],
                     'packages': [package],
                     'resources': [
                         f"{package}/logo/logo_white.png",
