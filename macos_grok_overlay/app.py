@@ -126,12 +126,15 @@ class AppDelegate(NSObject):
         user_content_controller.addScriptMessageHandler_name_(self, "backgroundColorHandler")
         # Inject JavaScript to monitor background color changes
         script = """
-            function sendBackgroundColor() {
-                var bgColor = window.getComputedStyle(document.body).backgroundColor;
-                window.webkit.messageHandlers.backgroundColorHandler.postMessage(bgColor);
+            function _post(bg){try{const h=window.webkit?.messageHandlers?.backgroundColorHandler;h&&h.postMessage(bg);}catch(e){}}
+            function _getColor(el){if(!el) return null; const c=getComputedStyle(el).backgroundColor; return (!c||c==='rgba(0, 0, 0, 0)'||c==='transparent')?null:c;}
+            function sendBackgroundColor(){
+                const bg=_getColor(document.body)||_getColor(document.documentElement)||'rgb(255,255,255)';
+                _post(bg);
             }
+            document.addEventListener('DOMContentLoaded', sendBackgroundColor);
             window.addEventListener('load', sendBackgroundColor);
-            new MutationObserver(sendBackgroundColor).observe(document.body, { attributes: true, attributeFilter: ['style'] });
+            new MutationObserver(sendBackgroundColor).observe(document.documentElement,{attributes:true,attributeFilter:['style'],subtree:true,childList:true});
         """
         user_script = WKUserScript.alloc().initWithSource_injectionTime_forMainFrameOnly_(script, WKUserScriptInjectionTimeAtDocumentEnd, True)
         user_content_controller.addUserScript_(user_script)
