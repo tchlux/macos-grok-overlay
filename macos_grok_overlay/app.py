@@ -67,7 +67,8 @@ class AppDelegate(NSObject):
         # Create a borderless, floating, resizable window
         self.window = AppWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(500, 200, 550, 580),
-            NSBorderlessWindowMask | NSResizableWindowMask,
+            NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable,
+            # NSBorderlessWindowMask | NSResizableWindowMask,  # Worked BEFORE Tahoe update
             NSBackingStoreBuffered,
             False
         )
@@ -201,7 +202,7 @@ class AppDelegate(NSObject):
             source = CFMachPortCreateRunLoopSource(None, tap, 0)
             CFRunLoopAddSource(CFRunLoopGetCurrent(), source, kCFRunLoopCommonModes)
             CGEventTapEnable(tap, True)
-            CFRunLoopRun() # Start the run loop
+            # CFRunLoopRun() # Start the run loop (causes HANG as of Tahoe)
         else:
             print("Failed to create event tap. Check Accessibility permissions.")
         # Load the custom launch trigger if the user set it.
@@ -261,10 +262,10 @@ class AppDelegate(NSObject):
     # For capturing key commands while the key window (in focus).
     def keyDown_(self, event):
         modifiers = event.modifierFlags()
-        key_command = modifiers & NSCommandKeyMask
-        key_alt = modifiers & NSAlternateKeyMask
-        key_shift = modifiers & NSShiftKeyMask
-        key_control = modifiers & NSControlKeyMask
+        key_command = modifiers & NSEventModifierFlagCommand
+        key_alt = modifiers & NSEventModifierFlagOption
+        key_shift = modifiers & NSEventModifierFlagShift
+        key_control = modifiers & NSEventModifierFlagControl
         key = event.charactersIgnoringModifiers()
         # Command (NOT alt)
         if (key_command or key_control) and (not key_alt):

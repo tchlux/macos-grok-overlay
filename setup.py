@@ -79,7 +79,7 @@ if __name__ == "__main__":
                         # 'NSMicrophoneUsageDescription': 'Microphone access is needed for voice mode features.'
 
                     },
-                    'includes': ['pyobjc'],  # Ensure required dependencies are bundled
+                    'includes': ['pyobjc', 'jaraco'],  # Ensure required dependencies are bundled
                     'packages': [package],
                     'resources': [
                         f"{package}/logo/logo_white.png",

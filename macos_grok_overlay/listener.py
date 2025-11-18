@@ -22,11 +22,12 @@ from Quartz import (
     CGEventGetIntegerValueField,
     kCGEventKeyDown,
     kCGKeyboardEventKeycode,
-    NSEvent,
-    NSAlternateKeyMask,
-    NSCommandKeyMask,
-    NSControlKeyMask,
-    NSShiftKeyMask,
+)
+from AppKit import (
+    NSEventModifierFlagOption,
+    NSEventModifierFlagCommand,
+    NSEventModifierFlagControl,
+    NSEventModifierFlagShift,
 )
 
 
@@ -157,13 +158,13 @@ def set_custom_launcher_trigger(app):
 # Helper function to get modifier names
 def get_modifier_names(flags):
     modifier_names = []
-    if flags & NSShiftKeyMask:
+    if flags & NSEventModifierFlagShift:
         modifier_names.append("Shift")
-    if flags & NSControlKeyMask:
+    if flags & NSEventModifierFlagControl:
         modifier_names.append("Control")
-    if flags & NSAlternateKeyMask:
+    if flags & NSEventModifierFlagOption:
         modifier_names.append("Option")
-    if flags & NSCommandKeyMask:
+    if flags & NSEventModifierFlagCommand:
         modifier_names.append("Command")
     return modifier_names
 
