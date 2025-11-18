@@ -74,12 +74,20 @@ if __name__ == "__main__":
                         'CFBundleName': package_name,
                         'CFBundleIdentifier': f'com.github-{git_username}.macos{source_page}overlay',  # Unique identifier
                         'LSUIElement': True,  # Hide from Dock and Cmd+Tab
+                        'NSMicrophoneUsageDescription': 'Microphone access is needed for voice mode features.',
+                        'NSInputMonitoringUsageDescription': 'Needed to listen for your chosen keyboard trigger to show/hide the overlay.',
                         # 'NSAppTransportSecurity': {'NSAllowsArbitraryLoads': True}  # Allow HTTP and invalid HTTPS certificates for X login
-                        # 'NSCameraUsageDescription': 'Camera access is needed to take pictures.',
-                        # 'NSMicrophoneUsageDescription': 'Microphone access is needed for voice mode features.'
-
                     },
-                    'includes': ['pyobjc', 'jaraco'],  # Ensure required dependencies are bundled
+                    'includes': ['pyobjc'],  # Keep bundle lean
+                    'excludes': [
+                        'jaraco', 'jaraco.functools', 'jaraco.text',
+                        'packaging', 'packaging.specifiers',
+                        'numpy', 'numpy.distutils', 'numpy_distutils',
+                        'pytest', 'psutil', 'pyodide_js',
+                        'pkg_resources.tests', 'setuptools._distutils.tests',
+                        'importlib_resources.tests', 'threadpoolctl',
+                        'platformdirs.android', 'jnius', 'lzma',
+                    ],
                     'packages': [package],
                     'resources': [
                         f"{package}/logo/logo_white.png",

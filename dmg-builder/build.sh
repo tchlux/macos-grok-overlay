@@ -47,6 +47,7 @@
 source config.sh
 
 # Create a build environment
+touch temp.egg-info
 rm -rf env dist build *.egg-info
 python3 -m venv env
 source env/bin/activate
