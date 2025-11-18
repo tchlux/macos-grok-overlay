@@ -6,3 +6,4 @@
 | 0.0.13<br>March 2025 | Redid the new-key-command selection to not require <br> system notifications. Instead creates an overlay <br> in-app. |
 | 0.0.15<br>March 2025 | Added DMG style application for easier installation <br> without python. |
 | 0.0.16<br>March 2025 | Fixed login via X.com, updated menu items to be <br> easier to interpret, added the ability to clear the <br> web cache in case of issues. Added stubs for later <br> support of camera and microphone if the web app <br> allows voice mode. |
+| 0.0.17<br>November 2025 | Support for macOS 26 Tahoe and voice mode (via <br> microphone permission request). |
