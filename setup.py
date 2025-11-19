@@ -25,6 +25,7 @@ source_page = "grok"
 package_name = f"macos-{source_page}-overlay"
 package_about = os.path.join(os.path.dirname(os.path.abspath(__file__)), package_name.replace("-","_"), "about")
 
+
 if __name__ == "__main__":
     #      Read in the package description files     
     # ===============================================
@@ -78,16 +79,8 @@ if __name__ == "__main__":
                         'NSInputMonitoringUsageDescription': 'Needed to listen for your chosen keyboard trigger to show/hide the overlay.',
                         # 'NSAppTransportSecurity': {'NSAllowsArbitraryLoads': True}  # Allow HTTP and invalid HTTPS certificates for X login
                     },
-                    'includes': ['pyobjc'],  # Keep bundle lean
-                    'excludes': [
-                        'jaraco', 'jaraco.functools', 'jaraco.text',
-                        'packaging', 'packaging.specifiers',
-                        'numpy', 'numpy.distutils', 'numpy_distutils',
-                        'pytest', 'psutil', 'pyodide_js',
-                        'pkg_resources.tests', 'setuptools._distutils.tests',
-                        'importlib_resources.tests', 'threadpoolctl',
-                        'platformdirs.android', 'jnius', 'lzma',
-                    ],
+                    'includes': ['objc', 'AppKit', 'WebKit', 'Quartz', 'Foundation', 'ApplicationServices'],
+                    'excludes': ['docutils', 'setuptools', 'pkg_resources', 'importlib_resources'],
                     'packages': [package],
                     'resources': [
                         f"{package}/logo/logo_white.png",
