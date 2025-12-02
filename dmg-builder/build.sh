@@ -61,6 +61,8 @@ python3 -m pip install setuptools==70.3.0 py2app pyobjc
 build_dir_name=${0:a:h:t}
 # Build the '.app' with 'py2app'
 pushd ..
+touch temp.egg-info
+rm -rf dist build *.egg-info
 python setup.py py2app --dist-dir="$build_dir_name"/dist --bdist-base="$build_dir_name"/build
 popd
 # Deactivate the python building environment
@@ -68,6 +70,8 @@ deactivate
 
 # Codesign all the '.so' files within the app
 find dist/$APP_NAME.app -type f -name "*.so" -exec codesign --deep --force --verify --verbose --options runtime --timestamp --sign "$SIGNATURE" {} \;
+# Codesign all the '.dylib' files within the app
+find dist/$APP_NAME.app -type f -name "*.dylib" -exec codesign --deep --force --verify --verbose --options runtime --timestamp --sign "$SIGNATURE" {} \;
 # Codesign the app itself
 codesign --deep --force --verify --verbose --options runtime --timestamp --sign "$SIGNATURE" dist/$APP_NAME.app
 # Create a ZIP for notary submission
