@@ -13,7 +13,7 @@ A simple macOS overlay application for pinning <code>grok.com</code> to a dedica
 
   The easiest approach is to download and execute the DMG installer (by clicking the image below) to place the program into your Applications folder.
 
-**WARNING** The following DMG launcher was built for macOS Tahoe (26.X, early 2025) for M-series laptops. It will not work for Intel based macOS devices, nor has it been tested on any other macOS versions than Tahoe. **Use the python installer for a more reliable experience.**
+**Compatibility:** The DMG launcher is now built as a universal binary (arm64 + x86_64), so it runs on both modern M-series laptops and older Intel-based Macs (2015/2017 era) provided they are on a supported version of macOS. When creating your own build you can force a specific target by exporting `PY2APP_ARCH` (e.g., `PY2APP_ARCH=x86_64 ./dmg-builder/build.sh`).
 
 [![DMG Installer](images/dmg-installer-preview.png)](https://github.com/tchlux/macos-grok-overlay/releases/download/0.0.17/macos-grok-overlay.dmg)
 
