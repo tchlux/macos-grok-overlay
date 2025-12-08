@@ -47,8 +47,16 @@ SPECIAL_KEY_NAMES = {
 }
 handle_new_trigger = None
 
+
+# Update the trigger menu item label.
+def update_menu_trigger_label(app):
+    flags = LAUNCHER_TRIGGER.get("flags", 0)
+    key = LAUNCHER_TRIGGER.get("key", "")
+    app.updateTriggerMenu(get_trigger_string(None, flags, key))
+
+
 # Load trigger from JSON file if it exists
-def load_custom_launcher_trigger():
+def load_custom_launcher_trigger(app):
     if TRIGGER_FILE.exists():
         try:
             with open(TRIGGER_FILE, "r") as f:
@@ -57,9 +65,12 @@ def load_custom_launcher_trigger():
             print(f"Overwriting default with a custom launch trigger:\n  {launcher_trigger}", flush=True)
             print(f"Disable custom override and return to default by deleting the file:\n  {TRIGGER_FILE}", flush=True)
             LAUNCHER_TRIGGER.update(launcher_trigger)
+            update_menu_trigger_label(app)
         except (json.JSONDecodeError, KeyError):
             pass
 
+
+# Set the custom trigger.
 def set_custom_launcher_trigger(app):
     app.showWindow_(None)
     print("Setting new launcher trigger.", flush=True)
@@ -138,6 +149,10 @@ def set_custom_launcher_trigger(app):
         with open(TRIGGER_FILE, "w") as f:
             json.dump(launcher_trigger, f)
         LAUNCHER_TRIGGER.update(launcher_trigger)
+        try:
+            update_menu_trigger_label(app)
+        except Exception:
+            pass
         trigger_str = get_trigger_string(event, flags, keycode)
         print("New launcher trigger set:", flush=True)
         print(f"  {launcher_trigger}", flush=True)
@@ -170,14 +185,19 @@ def get_modifier_names(flags):
 
 # Get human-readable string for the trigger
 def get_trigger_string(event, flags, keycode):
-    # Get the modifier names.
     modifier_names = get_modifier_names(flags)
-    # Get the key name.
-    if keycode in SPECIAL_KEY_NAMES:
-        key_name = SPECIAL_KEY_NAMES[keycode]
-    else:
-        key_name = NSEvent.eventWithCGEvent_(event).characters()
-    # Generate a plain text of the keys.
+    key_name = SPECIAL_KEY_NAMES.get(keycode)
+    if not key_name:
+        if event is not None:
+            key_name = NSEvent.eventWithCGEvent_(event).characters()
+        else:
+            key_name = {
+                0:"A",1:"S",2:"D",3:"F",4:"H",5:"G",6:"Z",7:"X",8:"C",9:"V",
+                11:"B",12:"Q",13:"W",14:"E",15:"R",16:"Y",17:"T",
+                31:"O",35:"P",32:"U",34:"I",46:"M",45:"N",47:"?",44:",",
+                18:"1",19:"2",20:"3",21:"4",22:"6",23:"5",25:"9",29:"0",
+                27:"7",24:"=",26:"-",28:"8",43:";",41:"'",42:"\\",39:"L",38:"J",37:"K"
+            }.get(keycode, str(keycode))
     return " + ".join(modifier_names + [key_name]) if modifier_names else key_name
 
 # Global event listener for showing/hiding the application and setting new triggers

@@ -7,6 +7,7 @@ import objc
 from AppKit import *
 from WebKit import *
 from Quartz import *
+from AVFoundation import AVCaptureDevice, AVMediaTypeAudio
 from Foundation import NSObject, NSURL, NSURLRequest, NSDate
 
 # Local libraries
@@ -19,6 +20,7 @@ from .constants import (
     FRAME_SAVE_NAME,
     STATUS_ITEM_CONTEXT,
     WEBSITE,
+    LAUNCHER_TRIGGER,
 )
 from .launcher import (
     install_startup,
@@ -82,6 +84,7 @@ class AppDelegate(NSObject):
         # Create the webview for the main application.
         config = WKWebViewConfiguration.alloc().init()
         config.preferences().setJavaScriptCanOpenWindowsAutomatically_(True)
+        config.preferences().setValue_forKey_(True, "mediaDevicesEnabled")
         # Initialize the WebView with a frame
         self.webview = WKWebView.alloc().initWithFrame_configuration_(
             ((0, 0), (800, 600)),  # Frame: origin (0,0), size (800x600)
@@ -168,15 +171,32 @@ class AppDelegate(NSObject):
         clear_data_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Clear Web Cache", "clearWebViewData:", "")
         clear_data_item.setTarget_(self)
         menu.addItem_(clear_data_item)
-        set_trigger_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Set New Trigger", "setTrigger:", "")
-        set_trigger_item.setTarget_(self)
-        menu.addItem_(set_trigger_item)
+        # Microphone.
+        mic_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Request Microphone Access", "requestMicrophoneAccess:", "")
+        mic_item.setTarget_(self)
+        menu.addItem_(mic_item)
+        # Intall / uninstall autolauncher.
         install_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Install Autolauncher", "install:", "")
         install_item.setTarget_(self)
         menu.addItem_(install_item)
         uninstall_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Uninstall Autolauncher", "uninstall:", "")
         uninstall_item.setTarget_(self)
         menu.addItem_(uninstall_item)
+        # ----------------------------------------
+        menu.addItem_(NSMenuItem.separatorItem())
+        # Trigger.
+        set_trigger_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Set New Trigger", "setTrigger:", "")
+        set_trigger_item.setTarget_(self)
+        menu.addItem_(set_trigger_item)
+        trigger_label = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Current Trigger", "", "")
+        trigger_label.setEnabled_(False)
+        menu.addItem_(trigger_label)
+        self.trigger_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("", "", "")
+        self.trigger_item.setEnabled_(False)
+        menu.addItem_(self.trigger_item)
+        menu.addItem_(NSMenuItem.separatorItem())
+        # ----------------------------------------
+        # Quit.
         quit_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Quit", "terminate:", "q")
         quit_item.setTarget_(NSApp)
         menu.addItem_(quit_item)
@@ -209,7 +229,7 @@ class AppDelegate(NSObject):
         else:
             print("Failed to create event tap. Check Accessibility permissions.")
         # Load the custom launch trigger if the user set it.
-        load_custom_launcher_trigger()
+        load_custom_launcher_trigger(self)
         # Set the delegate of the window to this parent application.
         self.window.setDelegate_(self)
         # Make sure this window is shown and focused.
@@ -221,7 +241,8 @@ class AppDelegate(NSObject):
         NSApp.activateIgnoringOtherApps_(True)
         # Execute the JavaScript to focus the textarea in the WKWebView
         self.webview.evaluateJavaScript_completionHandler_(
-            "document.querySelector('textarea').focus();", None
+            "[...document.querySelectorAll('textarea')].sort((a,b)=>a.contains(b)?-1:b.contains(a)?1:0).pop()?.focus();",
+            None
         )
 
     # Hide the overlay and allow focus to return to the next visible application.
@@ -244,6 +265,16 @@ class AppDelegate(NSObject):
             lambda: print("Data cleared")
         )
 
+    # Explicitly request microphone permission from macOS.
+    def requestMicrophoneAccess_(self, sender):
+        try:
+            AVCaptureDevice.requestAccessForMediaType_completionHandler_(
+                AVMediaTypeAudio,
+                lambda granted: print(f"Microphone access {'granted' if granted else 'denied'}.", flush=True)
+            )
+        except Exception as e:
+            print(f"Failed to request microphone access: {e}", flush=True)
+
     # Go to the default landing website for the overlay (in case accidentally navigated away).
     def install_(self, sender):
         if install_startup():
@@ -261,6 +292,9 @@ class AppDelegate(NSObject):
     # Handle the 'Set Trigger' menu item click.
     def setTrigger_(self, sender):
         set_custom_launcher_trigger(self)
+
+    def updateTriggerMenu(self, key_string=""):
+        self.trigger_item.setTitle_("    " + key_string)
 
     # For capturing key commands while the key window (in focus).
     def keyDown_(self, event):
