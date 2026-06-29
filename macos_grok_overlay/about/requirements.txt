@@ -3,3 +3,5 @@ pyobjc-framework-Cocoa
 pyobjc-framework-WebKit
 pyobjc-framework-Quartz
 pyobjc-framework-ApplicationServices
+pyobjc-framework-AVFoundation
+browser-cookie3
