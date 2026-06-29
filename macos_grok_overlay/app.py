@@ -11,6 +11,14 @@ from AVFoundation import AVCaptureDevice, AVMediaTypeAudio
 from Foundation import NSObject, NSURL, NSURLRequest, NSDate
 
 # Local libraries
+from .auth_browser import (
+    AUTH_CLICK_INTERCEPTOR_SCRIPT,
+    AuthBrowserManager,
+    WebNavigationDelegate,
+    WebUIDelegate,
+    is_login_page_url,
+)
+from .browser_cookies import sync_browser_cookies_to_webview
 from .constants import (
     APP_TITLE,
     CORNER_RADIUS,
@@ -81,6 +89,10 @@ class AppDelegate(NSObject):
         )
         # Save the last position and size
         self.window.setFrameAutosaveName_(FRAME_SAVE_NAME)
+        # Authentication helpers — sign-in runs in the user's browser, not WKWebView.
+        self.auth_browser = AuthBrowserManager(self)
+        self.web_ui_delegate = WebUIDelegate.alloc().initWithAppDelegate_(self)
+        self.web_nav_delegate = WebNavigationDelegate.alloc().initWithAppDelegate_(self)
         # Create the webview for the main application.
         config = WKWebViewConfiguration.alloc().init()
         config.preferences().setJavaScriptCanOpenWindowsAutomatically_(True)
@@ -91,6 +103,8 @@ class AppDelegate(NSObject):
             config
         )
         self.webview.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)  # Resizes with window
+        self.webview.setUIDelegate_(self.web_ui_delegate)
+        self.webview.setNavigationDelegate_(self.web_nav_delegate)
         # Set a custom user agent
         safari_user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
         self.webview.setCustomUserAgent_(safari_user_agent)
@@ -127,6 +141,7 @@ class AppDelegate(NSObject):
         configuration = self.webview.configuration()
         user_content_controller = configuration.userContentController()
         user_content_controller.addScriptMessageHandler_name_(self, "backgroundColorHandler")
+        user_content_controller.addScriptMessageHandler_name_(self, "authRedirectHandler")
         # Inject JavaScript to monitor background color changes
         script = """
             function _post(bg){try{const h=window.webkit?.messageHandlers?.backgroundColorHandler;h&&h.postMessage(bg);}catch(e){}}
@@ -141,6 +156,12 @@ class AppDelegate(NSObject):
         """
         user_script = WKUserScript.alloc().initWithSource_injectionTime_forMainFrameOnly_(script, WKUserScriptInjectionTimeAtDocumentEnd, True)
         user_content_controller.addUserScript_(user_script)
+        auth_script = WKUserScript.alloc().initWithSource_injectionTime_forMainFrameOnly_(
+            AUTH_CLICK_INTERCEPTOR_SCRIPT,
+            WKUserScriptInjectionTimeAtDocumentEnd,
+            True,
+        )
+        user_content_controller.addUserScript_(auth_script)
         # Create status bar item with logo
         self.status_item = NSStatusBar.systemStatusBar().statusItemWithLength_(NSSquareStatusItemLength)
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -171,6 +192,12 @@ class AppDelegate(NSObject):
         clear_data_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Clear Web Cache", "clearWebViewData:", "")
         clear_data_item.setTarget_(self)
         menu.addItem_(clear_data_item)
+        sign_in_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Sign In with Browser", "openSignInWindow:", "")
+        sign_in_item.setTarget_(self)
+        menu.addItem_(sign_in_item)
+        sync_login_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Sync Login from Browser", "syncLoginFromBrowser:", "")
+        sync_login_item.setTarget_(self)
+        menu.addItem_(sync_login_item)
         # Microphone.
         mic_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Request Microphone Access", "requestMicrophoneAccess:", "")
         mic_item.setTarget_(self)
@@ -235,10 +262,17 @@ class AppDelegate(NSObject):
         # Make sure this window is shown and focused.
         self.showWindow_(None)
 
+    # Promote the app to a regular foreground app while sign-in pages are visible.
+    @objc.python_method
+    def updateAuthSessionForMainWebView(self):
+        url_string = str(self.webview.URL().absoluteString())
+        self.auth_browser.set_main_webview_needs_auth(is_login_page_url(url_string))
+
     # Logic to show the overlay, make it the key window, and focus on the typing area.
     def showWindow_(self, sender):
         self.window.makeKeyAndOrderFront_(None)
         NSApp.activateIgnoringOtherApps_(True)
+        self.updateAuthSessionForMainWebView()
         # Execute the JavaScript to focus the textarea in the WKWebView
         self.webview.evaluateJavaScript_completionHandler_(
             "[...document.querySelectorAll('textarea')].sort((a,b)=>a.contains(b)?-1:b.contains(a)?1:0).pop()?.focus();",
@@ -251,9 +285,50 @@ class AppDelegate(NSObject):
     
     # Go to the default landing website for the overlay (in case accidentally navigated away).
     def goToWebsite_(self, sender):
+        self.loadOverlayHomePage_(None)
+
+    def loadOverlayHomePage_(self, sender):
         url = NSURL.URLWithString_(WEBSITE)
         request = NSURLRequest.requestWithURL_(url)
         self.webview.loadRequest_(request)
+
+    # Sync existing browser login first; open browser only if no cookies were found.
+    def openSignInWindow_(self, sender):
+        self.auth_browser._pending_browser_auth = True
+
+        def after_sync(imported_count):
+            self.loadOverlayHomePage_(None)
+            if imported_count > 0:
+                self.showWindow_(None)
+                return
+            self.auth_browser.open_sign_in_in_browser()
+
+        sync_browser_cookies_to_webview(self.webview, after_sync)
+
+    @objc.python_method
+    def _load_overlay_home_after_cookie_sync(self, imported_count):
+        self.loadOverlayHomePage_(None)
+        self.showWindow_(None)
+
+    @objc.python_method
+    def sync_login_from_browser(self, open_browser=False):
+        if open_browser:
+            self.auth_browser.open_sign_in_in_browser(show_instructions=False)
+        sync_browser_cookies_to_webview(
+            self.webview,
+            self._load_overlay_home_after_cookie_sync,
+        )
+
+    # Refresh the overlay after browser-based sign-in completes.
+    def reloadAfterBrowserAuth_(self, sender):
+        self.sync_login_from_browser(open_browser=False)
+
+    def syncLoginFromBrowser_(self, sender):
+        self.sync_login_from_browser(open_browser=False)
+
+    def applicationDidBecomeActive_(self, notification):
+        if self.auth_browser.consume_pending_browser_auth_reload():
+            self.sync_login_from_browser(open_browser=False)
     
     # Clear the webview cache data (in case cookies cause errors).
     def clearWebViewData_(self, sender):
@@ -362,6 +437,8 @@ class AppDelegate(NSObject):
                 r, g, b = [val / 255.0 for val in rgb_values[:3]]
                 color = NSColor.colorWithCalibratedRed_green_blue_alpha_(r, g, b, 1.0)
                 self.drag_area.setBackgroundColor_(color)
+        elif message.name() == "authRedirectHandler":
+            self.auth_browser.handle_user_auth_request(restore_overlay=True)
 
     # Logic for checking what color the logo in the status bar should be, and setting appropriate logo.
     def updateStatusItemImage(self):
