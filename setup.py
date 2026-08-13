@@ -79,7 +79,7 @@ if __name__ == "__main__":
                         'NSInputMonitoringUsageDescription': 'Needed to listen for your chosen keyboard trigger to show/hide the overlay.',
                         # 'NSAppTransportSecurity': {'NSAllowsArbitraryLoads': True}  # Allow HTTP and invalid HTTPS certificates for X login
                     },
-                    'includes': ['objc', 'AppKit', 'WebKit', 'Quartz', 'Foundation', 'ApplicationServices'],
+                    'includes': ['objc', 'AppKit', 'WebKit', 'Quartz', 'Foundation', 'ApplicationServices', 'AVFoundation'],
                     'excludes': ['docutils', 'setuptools', 'pkg_resources', 'importlib_resources'],
                     'packages': [package],
                     'resources': [

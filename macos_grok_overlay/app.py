@@ -8,7 +8,15 @@ from AppKit import *
 from WebKit import *
 from Quartz import *
 from AVFoundation import AVCaptureDevice, AVMediaTypeAudio
-from Foundation import NSObject, NSURL, NSURLRequest, NSDate
+from Foundation import (
+    NSDate,
+    NSDownloadsDirectory,
+    NSObject,
+    NSSearchPathForDirectoriesInDomains,
+    NSUserDomainMask,
+    NSURL,
+    NSURLRequest,
+)
 
 # Local libraries
 from .constants import (
@@ -55,9 +63,9 @@ class DragArea(NSView):
     def setBackgroundColor_(self, color):
         self.layer().setBackgroundColor_(color.CGColor())
 
-    # Used to capture the click-and-drag event.
-    def mouseDown_(self, event):
-        self.window().performWindowDragWithEvent_(event)
+    # Let AppKit prioritize the native resize rim before moving the window.
+    def mouseDownCanMoveWindow(self):
+        return True
 
 
 # The main delegate for running the overlay app.
@@ -75,10 +83,7 @@ class AppDelegate(NSObject):
             False
         )
         self.window.setLevel_(NSFloatingWindowLevel)
-        self.window.setCollectionBehavior_(
-            NSWindowCollectionBehaviorCanJoinAllSpaces
-            | NSWindowCollectionBehaviorStationary
-        )
+        self.restoreWindowBehavior_(None)
         # Save the last position and size
         self.window.setFrameAutosaveName_(FRAME_SAVE_NAME)
         # Create the webview for the main application.
@@ -90,6 +95,8 @@ class AppDelegate(NSObject):
             ((0, 0), (800, 600)),  # Frame: origin (0,0), size (800x600)
             config
         )
+        self.webview.setUIDelegate_(self)
+        self.webview.setNavigationDelegate_(self)
         self.webview.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)  # Resizes with window
         # Set a custom user agent
         safari_user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
@@ -206,10 +213,11 @@ class AppDelegate(NSObject):
         NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
             self, 'windowDidResize:', NSWindowDidResizeNotification, self.window
         )
-        # Add local mouse event monitor for left mouse down
-        self.local_mouse_monitor = NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
-            NSEventMaskLeftMouseDown,  # Monitor left mouse-down events
-            self.handleLocalMouseEvent  # Handler method
+        NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+            self, 'restoreWindowBehavior:', NSApplicationDidChangeScreenParametersNotification, None
+        )
+        NSWorkspace.sharedWorkspace().notificationCenter().addObserver_selector_name_object_(
+            self, 'restoreWindowBehavior:', NSWorkspaceDidWakeNotification, None
         )
         # Create the event tap for key-down events
         tap = CGEventTapCreate(
@@ -328,22 +336,11 @@ class AppDelegate(NSObject):
             # elif key == 'z':
             #     self.window.firstResponder().undo_(None)
 
-    # Handler for capturing a click-and-drag event when not already the key window.
-    @objc.python_method
-    def handleLocalMouseEvent(self, event):
-        if event.window() == self.window:
-            # Get the click location in window coordinates
-            click_location = event.locationInWindow()
-            # Use hitTest_ to determine which view receives the click
-            hit_view = self.window.contentView().hitTest_(click_location)
-            # Check if the hit view is the drag area
-            if hit_view == self.drag_area:
-                # Bring the window to the front and make it key
-                self.showWindow_(None)
-                # Initiate window dragging with the event
-                self.window.performWindowDragWithEvent_(event)
-                return None  # Consume the event
-        return event  # Pass unhandled events along
+    def restoreWindowBehavior_(self, notification):
+        self.window.setCollectionBehavior_(
+            NSWindowCollectionBehaviorCanJoinAllSpaces
+            | NSWindowCollectionBehaviorStationary
+        )
 
     # Handler for when the window resizes (adjusts the drag area).
     def windowDidResize_(self, notification):
@@ -351,6 +348,67 @@ class AppDelegate(NSObject):
         w, h = bounds.size.width, bounds.size.height
         self.drag_area.setFrame_(NSMakeRect(0, h - DRAG_AREA_HEIGHT, w, DRAG_AREA_HEIGHT))
         self.webview.setFrame_(NSMakeRect(0, 0, w, h - DRAG_AREA_HEIGHT))
+
+    @objc.python_method
+    def isInternalURL(self, url):
+        host = str(url.host() or "").lower()
+        path = str(url.path() or "").lower()
+        if host == "grok.com" or host.endswith(".grok.com"):
+            return True
+        if host == "accounts.x.ai" or host.endswith(".accounts.x.ai"):
+            return True
+        if host == "x.com" or host.endswith(".x.com") or host == "twitter.com" or host.endswith(".twitter.com"):
+            return any(marker in path for marker in ("oauth", "login", "authorize", "/i/flow"))
+        if host == "accounts.google.com":
+            return True
+        return False
+
+    def webView_decidePolicyForNavigationAction_decisionHandler_(self, webview, action, decisionHandler):
+        if action.shouldPerformDownload():
+            decisionHandler(WKNavigationActionPolicyDownload)
+            return
+        url = action.request().URL()
+        if action.targetFrame() is None:
+            if self.isInternalURL(url):
+                webview.loadRequest_(action.request())
+            else:
+                NSWorkspace.sharedWorkspace().openURL_(url)
+            decisionHandler(WKNavigationActionPolicyCancel)
+            return
+        if action.navigationType() == WKNavigationTypeLinkActivated and not self.isInternalURL(url):
+            NSWorkspace.sharedWorkspace().openURL_(url)
+            decisionHandler(WKNavigationActionPolicyCancel)
+            return
+        decisionHandler(WKNavigationActionPolicyAllow)
+
+    def webView_createWebViewWithConfiguration_forNavigationAction_windowFeatures_(self, webview, configuration, action, features):
+        url = action.request().URL()
+        if self.isInternalURL(url):
+            webview.loadRequest_(action.request())
+        else:
+            NSWorkspace.sharedWorkspace().openURL_(url)
+        return None
+
+    def webView_navigationAction_didBecomeDownload_(self, webview, action, download):
+        download.setDelegate_(self)
+
+    def webView_navigationResponse_didBecomeDownload_(self, webview, response, download):
+        download.setDelegate_(self)
+
+    def download_decideDestinationUsingResponse_suggestedFilename_completionHandler_(self, download, response, filename, completionHandler):
+        directory = NSSearchPathForDirectoriesInDomains(NSDownloadsDirectory, NSUserDomainMask, True)[0]
+        path = os.path.join(directory, os.path.basename(str(filename)))
+        stem, suffix = os.path.splitext(path)
+        index = 2
+        while os.path.exists(path):
+            path = f"{stem} {index}{suffix}"
+            index += 1
+        completionHandler(NSURL.fileURLWithPath_(path))
+
+    def webView_requestMediaCapturePermissionForOrigin_initiatedByFrame_type_decisionHandler_(self, webview, origin, frame, captureType, decisionHandler):
+        host = str(origin.host() or "").lower()
+        trusted = host == "grok.com" or host.endswith(".grok.com")
+        decisionHandler(WKPermissionDecisionGrant if trusted else WKPermissionDecisionDeny)
 
     # Handler for setting the background color based on the web page background color.
     def userContentController_didReceiveScriptMessage_(self, userContentController, message):
@@ -366,6 +424,7 @@ class AppDelegate(NSObject):
     # Logic for checking what color the logo in the status bar should be, and setting appropriate logo.
     def updateStatusItemImage(self):
         appearance = self.status_item.button().effectiveAppearance()
+        self.webview.setAppearance_(appearance)
         if appearance.bestMatchFromAppearancesWithNames_([NSAppearanceNameAqua, NSAppearanceNameDarkAqua]) == NSAppearanceNameDarkAqua:
             self.status_item.button().setImage_(self.logo_white)
         else:
